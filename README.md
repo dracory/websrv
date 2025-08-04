@@ -1,5 +1,7 @@
 # Server Package
 
+![tests](https://github.com/dracory/websrv/workflows/tests/badge.svg)
+
 The `server` package provides a simple and configurable HTTP server implementation with support for graceful shutdown, different operating modes, and configurable logging levels.
 
 ## Quick Start
