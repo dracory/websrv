@@ -38,7 +38,7 @@ func main() {
 - **Multiple Operating Modes**: Production and testing modes
 - **Configurable Logging**: Debug, info, error, and none log levels
 - **Graceful Shutdown**: Handles OS signals (SIGINT, SIGTERM) for clean server termination
-- **Colorized Logging**: Uses `cfmt` for better visibility of server status
+- **Structured Logging**: Uses the standard library `log/slog` for structured server status logs
 
 ## Configuration Options
 
@@ -78,7 +78,7 @@ The package includes a test file (`start_test.go`) that demonstrates how to test
 
 ## Dependencies
 
-- `github.com/mingrammer/cfmt`: Colorized formatting for logs
+- Standard library only (`log/slog` for structured logging)
 
 ## Advanced Usage
 

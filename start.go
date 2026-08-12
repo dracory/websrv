@@ -3,12 +3,11 @@ package websrv
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-
-	"github.com/mingrammer/cfmt"
 )
 
 const TestingMode = "testing"
@@ -76,9 +75,9 @@ func Start(options Options) (server *Server, err error) {
 
 	// Log server startup
 	if options.LogLevel == LogLevelDebug || options.LogLevel == LogLevelInfo {
-		cfmt.Infoln("🚀 Starting server on: ", addr)
+		slog.Info("🚀 Starting server", "addr", addr)
 		if options.URL != "" {
-			cfmt.Infoln("🌍 APP URL: ", options.URL)
+			slog.Info("🌍 APP URL", "url", options.URL)
 		}
 	}
 
@@ -93,7 +92,7 @@ func Start(options Options) (server *Server, err error) {
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			if options.Mode == TestingMode {
 				if options.LogLevel != LogLevelNone {
-					cfmt.Errorln("❌ Error starting server:", err)
+					slog.Error("❌ Error starting server", "err", err)
 				}
 			} else {
 				if options.LogLevel != LogLevelNone {
@@ -107,20 +106,20 @@ func Start(options Options) (server *Server, err error) {
 
 	// Wait for a shutdown signal
 	if options.LogLevel == LogLevelDebug || options.LogLevel == LogLevelInfo {
-		cfmt.Infoln("✅ Server is now running, press Ctrl+C to stop it.")
+		slog.Info("✅ Server is now running, press Ctrl+C to stop it.")
 	}
 
 	sig := <-shutdownChan
 
 	if options.LogLevel == LogLevelDebug || options.LogLevel == LogLevelInfo {
-		cfmt.Infoln("👋 Received signal:", sig)
-		cfmt.Infoln("👋 Shutting down server...")
+		slog.Info("👋 Received signal", "sig", sig)
+		slog.Info("👋 Shutting down server...")
 	}
 
 	// Shutdown the server
 	if err := server.Shutdown(context.Background()); err != nil {
 		if options.LogLevel != LogLevelNone {
-			cfmt.Errorln("👋 Error shutting down server:", err)
+			slog.Error("👋 Error shutting down server", "err", err)
 		}
 		return nil, err
 	}
