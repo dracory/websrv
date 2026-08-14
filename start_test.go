@@ -45,8 +45,9 @@ func TestStartWebServer(t *testing.T) {
 	// Check if the server is running
 	resp, err := http.Get(url)
 	if err != nil {
-		t.Errorf("Failed to make a request to the server: %v", err)
+		t.Fatalf("Failed to make a request to the server: %v", err)
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Server should return status OK, got %d", resp.StatusCode)
 	}
@@ -111,7 +112,7 @@ func TestStart_ProductionExitOnStartupFailure(t *testing.T) {
 	select {
 	case code := <-exitCalled:
 		if code != 1 {
-			t.Errorf("expected exit code 1 on startup failure, got %d", code)
+			t.Fatalf("expected exit code 1 on startup failure, got %d", code)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("osExit was not called on startup failure")
