@@ -110,6 +110,7 @@ func Start(options Options) (server *Server, err error) {
 
 	// Register shutdown signals
 	signal.Notify(shutdownChan, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(shutdownChan)
 
 	// Start the server in a separate goroutine. Server.Start wraps
 	// ListenAndServe and swallows http.ErrServerClosed (returned on graceful

@@ -98,11 +98,13 @@ func TestStart_ProductionExitOnStartupFailure(t *testing.T) {
 	exitCalled := make(chan int, 2)
 	oldExit := osExit
 	osExit = func(code int) { exitCalled <- code }
-	defer func() { osExit = oldExit }()
 
 	shutdown := make(chan os.Signal, 1)
 
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		Start(Options{
 			Host:         "localhost",
 			Port:         port,
@@ -111,6 +113,15 @@ func TestStart_ProductionExitOnStartupFailure(t *testing.T) {
 			LogLevel:     LogLevelNone,
 			ShutdownChan: shutdown,
 		})
+	}()
+
+	// Ensure the Start goroutine has fully returned before restoring the
+	// real os.Exit — otherwise a timeout here would let Start call the
+	// real os.Exit(0) after the defer runs, killing the test process.
+	defer func() {
+		shutdown <- syscall.SIGTERM
+		wg.Wait()
+		osExit = oldExit
 	}()
 
 	select {
@@ -131,7 +142,7 @@ func TestStart_ProductionExitOnStartupFailure(t *testing.T) {
 	select {
 	case code := <-exitCalled:
 		if code != 0 {
-			t.Errorf("expected exit code 0 after unblocking, got %d", code)
+			t.Fatalf("expected exit code 0 after unblocking, got %d", code)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("Start did not finish after shutdown signal")
@@ -147,11 +158,13 @@ func TestStart_ProductionExitOnCleanShutdown(t *testing.T) {
 	exitCalled := make(chan int, 1)
 	oldExit := osExit
 	osExit = func(code int) { exitCalled <- code }
-	defer func() { osExit = oldExit }()
 
 	shutdown := make(chan os.Signal, 1)
 
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		Start(Options{
 			Host:         "localhost",
 			Port:         port,
@@ -160,6 +173,15 @@ func TestStart_ProductionExitOnCleanShutdown(t *testing.T) {
 			LogLevel:     LogLevelNone,
 			ShutdownChan: shutdown,
 		})
+	}()
+
+	// Ensure the Start goroutine has fully returned before restoring the
+	// real os.Exit — otherwise a timeout here would let Start call the
+	// real os.Exit(0) after the defer runs, killing the test process.
+	defer func() {
+		shutdown <- syscall.SIGTERM
+		wg.Wait()
+		osExit = oldExit
 	}()
 
 	// Wait for the server to start.
@@ -182,7 +204,7 @@ func TestStart_ProductionExitOnCleanShutdown(t *testing.T) {
 	select {
 	case code := <-exitCalled:
 		if code != 0 {
-			t.Errorf("expected exit code 0 on clean shutdown, got %d", code)
+			t.Fatalf("expected exit code 0 on clean shutdown, got %d", code)
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("osExit was not called on clean shutdown")
