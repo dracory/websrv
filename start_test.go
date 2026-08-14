@@ -155,7 +155,7 @@ func TestStart_ProductionExitOnCleanShutdown(t *testing.T) {
 	port := freePort(t)
 	url := "http://localhost:" + port
 
-	exitCalled := make(chan int, 1)
+	exitCalled := make(chan int, 2)
 	oldExit := osExit
 	osExit = func(code int) { exitCalled <- code }
 
