@@ -14,7 +14,8 @@ import (
 )
 
 func TestStartWebServer(t *testing.T) {
-	url := "http://localhost:8080"
+	port := freePort(t)
+	url := "http://localhost:" + port
 	var wg sync.WaitGroup
 	wg.Add(1)
 
@@ -25,7 +26,7 @@ func TestStartWebServer(t *testing.T) {
 		defer wg.Done()
 		Start(Options{
 			Host:         "localhost",
-			Port:         "8080",
+			Port:         port,
 			Handler:      func(w http.ResponseWriter, r *http.Request) {},
 			Mode:         `testing`,
 			ShutdownChan: shutdown,

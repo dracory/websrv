@@ -8,7 +8,7 @@ import (
 )
 
 func TestServer_Start(t *testing.T) {
-	srv := New("localhost:45568", func(w http.ResponseWriter, r *http.Request) {
+	srv := New("localhost:"+freePort(t), func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Hello world"))
 	})
