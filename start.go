@@ -2,7 +2,6 @@ package websrv
 
 import (
 	"context"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -60,6 +59,12 @@ var shutdownChan = make(chan os.Signal, 1)
 // Returns:
 // - none
 func Start(options Options) (server *Server, err error) {
+	// Route slog output to stdout so logs appear immediately (the default
+	// slog handler writes to stderr, which is line-buffered by many task
+	// runners and only flushed on process exit). A custom handler is used
+	// to emit human-readable lines without the verbose TextHandler prefix.
+	slog.SetDefault(slog.New(newSimpleHandler(os.Stdout)))
+
 	// Set default mode if not provided
 	if options.Mode == "" {
 		options.Mode = DefaultMode
@@ -96,10 +101,9 @@ func Start(options Options) (server *Server, err error) {
 				}
 			} else {
 				if options.LogLevel != LogLevelNone {
-					log.Fatal("❌ Error starting server:", err)
-				} else {
-					os.Exit(1)
+					slog.Error("❌ Error starting server", "err", err)
 				}
+				os.Exit(1)
 			}
 		}
 	}()
