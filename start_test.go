@@ -34,7 +34,11 @@ func TestStartWebServer(t *testing.T) {
 	}()
 
 	// Wait for the server to start
+	deadline := time.Now().Add(5 * time.Second)
 	for {
+		if time.Now().After(deadline) {
+			t.Fatal("server did not start within 5s")
+		}
 		_, err := http.Get(url)
 		if err == nil {
 			break
@@ -159,7 +163,11 @@ func TestStart_ProductionExitOnCleanShutdown(t *testing.T) {
 	}()
 
 	// Wait for the server to start.
+	deadline := time.Now().Add(5 * time.Second)
 	for {
+		if time.Now().After(deadline) {
+			t.Fatal("server did not start within 5s")
+		}
 		resp, err := http.Get(url)
 		if err == nil {
 			resp.Body.Close()
