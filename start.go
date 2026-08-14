@@ -41,23 +41,25 @@ const (
 
 var shutdownChan = make(chan os.Signal, 1)
 
-// StartWebServerbserver starts the web server at the specified host and port and listens
-// for incoming requests.
+// Start starts the web server at the specified host and port and listens
+// for incoming requests. It blocks until a shutdown signal (SIGINT or
+// SIGTERM) is received, then gracefully shuts the server down.
 //
 // Example:
 //
-//	StartWebServer(Options{
-//	 Host: "localhost",
-//	 Port: "8080",
-//	 Handler: func(w http.ResponseWriter, r *http.Request) {},
-//	 Mode: "production",
+//	websrv.Start(websrv.Options{
+//		Host:    "localhost",
+//		Port:    "8080",
+//		Handler: func(w http.ResponseWriter, r *http.Request) {},
+//		Mode:    websrv.ProductionMode,
 //	})
 //
 // Parameters:
-// - none
+// - options: the server configuration (see Options)
 //
 // Returns:
-// - none
+// - server: the *Server instance (nil if shutdown failed)
+// - err: a non-nil error only if graceful shutdown fails
 func Start(options Options) (server *Server, err error) {
 	// Route slog output to stdout so logs appear immediately (the default
 	// slog handler writes to stderr, which is line-buffered by many task

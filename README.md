@@ -11,7 +11,8 @@ package main
 
 import (
     "net/http"
-    "your-project/server"
+
+    "github.com/dracory/websrv"
 )
 
 func main() {
@@ -21,13 +22,13 @@ func main() {
     }
 
     // Start the server
-    server.Start(server.Options{
-        Host:    "localhost",
-        Port:    "8080",
-        URL:     "http://localhost:8080",
-        Handler: handler,
-        Mode:    server.ProductionMode,
-        LogLevel: server.LogLevelInfo,
+    websrv.Start(websrv.Options{
+        Host:     "localhost",
+        Port:     "8080",
+        URL:      "http://localhost:8080",
+        Handler:  handler,
+        Mode:     websrv.ProductionMode,
+        LogLevel: websrv.LogLevelInfo,
     })
 }
 ```
@@ -90,14 +91,15 @@ package main
 import (
     "fmt"
     "net/http"
-    "your-project/router"
-    "your-project/server"
+
+    "github.com/dracory/router"
+    "github.com/dracory/websrv"
 )
 
 func main() {
     // Create a new router
     r := router.NewRouter()
-    
+
     // Add routes to the router
     r.AddRoute(router.NewRoute().
         SetMethod("GET").
@@ -105,14 +107,14 @@ func main() {
         SetHandler(func(w http.ResponseWriter, r *http.Request) {
             fmt.Fprint(w, "Welcome to the homepage!")
         }))
-    
+
     r.AddRoute(router.NewRoute().
         SetMethod("GET").
         SetPath("/api/users").
         SetHandler(func(w http.ResponseWriter, r *http.Request) {
             fmt.Fprint(w, "User list API endpoint")
         }))
-    
+
     // Create an API group with middleware
     apiGroup := router.NewGroup().
         SetPrefix("/api").
@@ -125,7 +127,7 @@ func main() {
                 })
             },
         })
-    
+
     // Add routes to the API group
     apiGroup.AddRoute(router.NewRoute().
         SetMethod("GET").
@@ -133,18 +135,18 @@ func main() {
         SetHandler(func(w http.ResponseWriter, r *http.Request) {
             fmt.Fprint(w, "Products API endpoint")
         }))
-    
+
     // Add the group to the router
     r.AddGroup(apiGroup)
-    
+
     // Start the server with the router as the handler
-    server.Start(server.Options{
-        Host:    "localhost",
-        Port:    "8080",
-        URL:     "http://localhost:8080",
-        Handler: r.ServeHTTP,
-        Mode:    server.ProductionMode,
-        LogLevel: server.LogLevelInfo,
+    websrv.Start(websrv.Options{
+        Host:     "localhost",
+        Port:     "8080",
+        URL:      "http://localhost:8080",
+        Handler:  r.ServeHTTP,
+        Mode:     websrv.ProductionMode,
+        LogLevel: websrv.LogLevelInfo,
     })
 }
 ```
