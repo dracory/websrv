@@ -10,7 +10,7 @@ type Server struct {
 }
 
 func (s *Server) Start() error {
-	if err := s.ListenAndServe(); err != http.ErrServerClosed {
+	if err := s.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
 	}
 
