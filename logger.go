@@ -15,16 +15,33 @@ import (
 //	INFO 🚀 Starting server addr=127.0.0.8:80
 //	ERROR ❌ Error starting server err=...
 type simpleHandler struct {
-	w io.Writer
+	w     io.Writer
+	level slog.Level
 }
 
-// newSimpleHandler returns a simpleHandler that writes to w.
-func newSimpleHandler(w io.Writer) *simpleHandler {
-	return &simpleHandler{w: w}
+// newSimpleHandler returns a simpleHandler that writes to w and only emits
+// records at or above the given slog level.
+func newSimpleHandler(w io.Writer, level slog.Level) *simpleHandler {
+	return &simpleHandler{w: w, level: level}
 }
 
-func (h *simpleHandler) Enabled(_ context.Context, _ slog.Level) bool {
-	return true
+func (h *simpleHandler) Enabled(_ context.Context, l slog.Level) bool {
+	return l >= h.level
+}
+
+// logLevelToSlog maps a LogLevel to its slog.Level equivalent.
+func logLevelToSlog(l LogLevel) slog.Level {
+	switch l {
+	case LogLevelDebug:
+		return slog.LevelDebug
+	case LogLevelError:
+		return slog.LevelError
+	case LogLevelNone:
+		// Suppress all records: use a level higher than any standard level.
+		return slog.LevelError + 1
+	default: // LogLevelInfo and any unset value
+		return slog.LevelInfo
+	}
 }
 
 func (h *simpleHandler) Handle(_ context.Context, r slog.Record) error {

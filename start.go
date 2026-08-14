@@ -65,12 +65,6 @@ var osExit = os.Exit
 // - server: the *Server instance (nil if shutdown failed)
 // - err: a non-nil error only if graceful shutdown fails
 func Start(options Options) (server *Server, err error) {
-	// Route slog output to stdout so logs appear immediately (the default
-	// slog handler writes to stderr, which is line-buffered by many task
-	// runners and only flushed on process exit). A custom handler is used
-	// to emit human-readable lines without the verbose TextHandler prefix.
-	slog.SetDefault(slog.New(newSimpleHandler(os.Stdout)))
-
 	// Set default mode if not provided
 	if options.Mode == "" {
 		options.Mode = DefaultMode
@@ -81,15 +75,21 @@ func Start(options Options) (server *Server, err error) {
 		options.LogLevel = LogLevelInfo
 	}
 
+	// Route slog output to stdout so logs appear immediately (the default
+	// slog handler writes to stderr, which is line-buffered by many task
+	// runners and only flushed on process exit). A custom handler is used
+	// to emit human-readable lines without the verbose TextHandler prefix.
+	// The configured LogLevel is wired into the handler's Enabled method so
+	// slog itself filters records — no manual if-guards needed at call sites.
+	slog.SetDefault(slog.New(newSimpleHandler(os.Stdout, logLevelToSlog(options.LogLevel))))
+
 	// Create the server address
 	addr := options.Host + ":" + options.Port
 
 	// Log server startup
-	if options.LogLevel == LogLevelDebug || options.LogLevel == LogLevelInfo {
-		slog.Info("🚀 Starting server", "addr", addr)
-		if options.URL != "" {
-			slog.Info("🌍 APP URL", "url", options.URL)
-		}
+	slog.Info("🚀 Starting server", "addr", addr)
+	if options.URL != "" {
+		slog.Info("🌍 APP URL", "url", options.URL)
 	}
 
 	// Create a new web server
@@ -103,9 +103,7 @@ func Start(options Options) (server *Server, err error) {
 	// shutdown), so any non-nil error here is a real startup failure.
 	go func() {
 		if err := server.Start(); err != nil {
-			if options.LogLevel != LogLevelNone {
-				slog.Error("❌ Error starting server", "err", err)
-			}
+			slog.Error("❌ Error starting server", "err", err)
 			if options.Mode != TestingMode {
 				osExit(1)
 			}
@@ -113,22 +111,16 @@ func Start(options Options) (server *Server, err error) {
 	}()
 
 	// Wait for a shutdown signal
-	if options.LogLevel == LogLevelDebug || options.LogLevel == LogLevelInfo {
-		slog.Info("✅ Server is now running, press Ctrl+C to stop it.")
-	}
+	slog.Info("✅ Server is now running, press Ctrl+C to stop it.")
 
 	sig := <-shutdownChan
 
-	if options.LogLevel == LogLevelDebug || options.LogLevel == LogLevelInfo {
-		slog.Info("👋 Received signal", "sig", sig)
-		slog.Info("👋 Shutting down server...")
-	}
+	slog.Info("👋 Received signal", "sig", sig)
+	slog.Info("👋 Shutting down server...")
 
 	// Shutdown the server
 	if err := server.Shutdown(context.Background()); err != nil {
-		if options.LogLevel != LogLevelNone {
-			slog.Error("👋 Error shutting down server", "err", err)
-		}
+		slog.Error("👋 Error shutting down server", "err", err)
 		return nil, err
 	}
 

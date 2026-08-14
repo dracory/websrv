@@ -1,6 +1,8 @@
 package websrv
 
 import (
+	"bytes"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -164,5 +166,41 @@ func TestStart_ProductionExitOnCleanShutdown(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("osExit was not called on clean shutdown")
+	}
+}
+
+// TestLogLevelFiltering verifies that the configured LogLevel is enforced
+// by the slog handler's Enabled method rather than manual if-guards.
+func TestLogLevelFiltering(t *testing.T) {
+	tests := []struct {
+		name     string
+		logLevel LogLevel
+		call     func()
+		wantOut  bool
+	}{
+		{"Info at Debug", LogLevelDebug, func() { slog.Info("msg") }, true},
+		{"Info at Info", LogLevelInfo, func() { slog.Info("msg") }, true},
+		{"Info at Error", LogLevelError, func() { slog.Info("msg") }, false},
+		{"Info at None", LogLevelNone, func() { slog.Info("msg") }, false},
+		{"Error at Error", LogLevelError, func() { slog.Error("msg") }, true},
+		{"Error at None", LogLevelNone, func() { slog.Error("msg") }, false},
+		{"Debug at Debug", LogLevelDebug, func() { slog.Debug("msg") }, true},
+		{"Debug at Info", LogLevelInfo, func() { slog.Debug("msg") }, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			oldDefault := slog.Default()
+			defer slog.SetDefault(oldDefault)
+			slog.SetDefault(slog.New(newSimpleHandler(&buf, logLevelToSlog(tt.logLevel))))
+
+			tt.call()
+
+			gotOut := buf.Len() > 0
+			if gotOut != tt.wantOut {
+				t.Errorf("got output=%v, want %v (buf=%q)", gotOut, tt.wantOut, buf.String())
+			}
+		})
 	}
 }
