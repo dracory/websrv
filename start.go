@@ -41,6 +41,10 @@ const (
 
 var shutdownChan = make(chan os.Signal, 1)
 
+// osExit is indirection over os.Exit so tests can verify exit behavior
+// without killing the test process. Defaults to os.Exit in production.
+var osExit = os.Exit
+
 // Start starts the web server at the specified host and port and listens
 // for incoming requests. It blocks until a shutdown signal (SIGINT or
 // SIGTERM) is received, then gracefully shuts the server down.
@@ -94,18 +98,16 @@ func Start(options Options) (server *Server, err error) {
 	// Register shutdown signals
 	signal.Notify(shutdownChan, os.Interrupt, syscall.SIGTERM)
 
-	// Start the server in a separate goroutine
+	// Start the server in a separate goroutine. Server.Start wraps
+	// ListenAndServe and swallows http.ErrServerClosed (returned on graceful
+	// shutdown), so any non-nil error here is a real startup failure.
 	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			if options.Mode == TestingMode {
-				if options.LogLevel != LogLevelNone {
-					slog.Error("❌ Error starting server", "err", err)
-				}
-			} else {
-				if options.LogLevel != LogLevelNone {
-					slog.Error("❌ Error starting server", "err", err)
-				}
-				os.Exit(1)
+		if err := server.Start(); err != nil {
+			if options.LogLevel != LogLevelNone {
+				slog.Error("❌ Error starting server", "err", err)
+			}
+			if options.Mode != TestingMode {
+				osExit(1)
 			}
 		}
 	}()
@@ -131,7 +133,7 @@ func Start(options Options) (server *Server, err error) {
 	}
 
 	if options.Mode != TestingMode {
-		os.Exit(0)
+		osExit(0)
 	}
 
 	return server, nil

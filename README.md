@@ -153,4 +153,4 @@ func main() {
 
 ## License
 
-This package is part of the main project and subject to its license terms. 
+This package is licensed under the [MIT License](LICENSE).

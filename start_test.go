@@ -1,7 +1,9 @@
 package websrv
 
 import (
+	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"syscall"
 	"testing"
@@ -52,5 +54,115 @@ func TestStartWebServer(t *testing.T) {
 	_, err = http.Get(url)
 	if err == nil {
 		t.Errorf("Server should be shut down")
+	}
+}
+
+// freePort returns a port that is currently free by opening a listener on
+// port 0 and closing it. There is an inherent race window between closing
+// the listener and the caller binding to the port, but it is short enough
+// for test purposes.
+func freePort(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatalf("failed to find free port: %v", err)
+	}
+	defer ln.Close()
+	return strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)
+}
+
+// TestStart_ProductionExitOnStartupFailure verifies that Start calls osExit
+// with code 1 when the server fails to start in production mode (e.g. the
+// port is already in use).
+func TestStart_ProductionExitOnStartupFailure(t *testing.T) {
+	// Occupy a port so the server cannot bind to it.
+	ln, err := net.Listen("tcp", "localhost:0")
+	if err != nil {
+		t.Fatalf("failed to occupy port: %v", err)
+	}
+	defer ln.Close()
+	port := strconv.Itoa(ln.Addr().(*net.TCPAddr).Port)
+
+	exitCalled := make(chan int, 2)
+	oldExit := osExit
+	osExit = func(code int) { exitCalled <- code }
+	defer func() { osExit = oldExit }()
+
+	go func() {
+		Start(Options{
+			Host:     "localhost",
+			Port:     port,
+			Handler:  func(w http.ResponseWriter, r *http.Request) {},
+			Mode:     ProductionMode,
+			LogLevel: LogLevelNone,
+		})
+	}()
+
+	select {
+	case code := <-exitCalled:
+		if code != 1 {
+			t.Errorf("expected exit code 1 on startup failure, got %d", code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("osExit was not called on startup failure")
+	}
+
+	// Unblock Start so it can finish. The fake osExit is still installed,
+	// so the osExit(0) on the clean-shutdown path won't kill the test
+	// process. This avoids leaking a goroutine blocked on the shared
+	// shutdownChan, which would steal signals from later tests.
+	shutdownChan <- syscall.SIGTERM
+
+	select {
+	case code := <-exitCalled:
+		if code != 0 {
+			t.Errorf("expected exit code 0 after unblocking, got %d", code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Start did not finish after shutdown signal")
+	}
+}
+
+// TestStart_ProductionExitOnCleanShutdown verifies that Start calls osExit
+// with code 0 after a graceful shutdown in production mode.
+func TestStart_ProductionExitOnCleanShutdown(t *testing.T) {
+	port := freePort(t)
+	url := "http://localhost:" + port
+
+	exitCalled := make(chan int, 1)
+	oldExit := osExit
+	osExit = func(code int) { exitCalled <- code }
+	defer func() { osExit = oldExit }()
+
+	go func() {
+		Start(Options{
+			Host:     "localhost",
+			Port:     port,
+			Handler:  func(w http.ResponseWriter, r *http.Request) {},
+			Mode:     ProductionMode,
+			LogLevel: LogLevelNone,
+		})
+	}()
+
+	// Wait for the server to start.
+	for {
+		resp, err := http.Get(url)
+		if err == nil {
+			resp.Body.Close()
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// Trigger graceful shutdown.
+	shutdownChan <- syscall.SIGTERM
+
+	select {
+	case code := <-exitCalled:
+		if code != 0 {
+			t.Errorf("expected exit code 0 on clean shutdown, got %d", code)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("osExit was not called on clean shutdown")
 	}
 }
