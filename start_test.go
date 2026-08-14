@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"syscall"
@@ -17,14 +18,17 @@ func TestStartWebServer(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 
+	shutdown := make(chan os.Signal, 1)
+
 	// Start the web server in a goroutine
 	go func() {
 		defer wg.Done()
 		Start(Options{
-			Host:    "localhost",
-			Port:    "8080",
-			Handler: func(w http.ResponseWriter, r *http.Request) {},
-			Mode:    `testing`,
+			Host:         "localhost",
+			Port:         "8080",
+			Handler:      func(w http.ResponseWriter, r *http.Request) {},
+			Mode:         `testing`,
+			ShutdownChan: shutdown,
 		})
 	}()
 
@@ -46,8 +50,8 @@ func TestStartWebServer(t *testing.T) {
 		t.Errorf("Server should return status OK, got %d", resp.StatusCode)
 	}
 
-	// Send a shutdown signal to the shutdownChan
-	shutdownChan <- syscall.SIGTERM
+	// Send a shutdown signal
+	shutdown <- syscall.SIGTERM
 
 	// Wait for the server to shut down
 	wg.Wait()
@@ -90,13 +94,16 @@ func TestStart_ProductionExitOnStartupFailure(t *testing.T) {
 	osExit = func(code int) { exitCalled <- code }
 	defer func() { osExit = oldExit }()
 
+	shutdown := make(chan os.Signal, 1)
+
 	go func() {
 		Start(Options{
-			Host:     "localhost",
-			Port:     port,
-			Handler:  func(w http.ResponseWriter, r *http.Request) {},
-			Mode:     ProductionMode,
-			LogLevel: LogLevelNone,
+			Host:         "localhost",
+			Port:         port,
+			Handler:      func(w http.ResponseWriter, r *http.Request) {},
+			Mode:         ProductionMode,
+			LogLevel:     LogLevelNone,
+			ShutdownChan: shutdown,
 		})
 	}()
 
@@ -111,9 +118,9 @@ func TestStart_ProductionExitOnStartupFailure(t *testing.T) {
 
 	// Unblock Start so it can finish. The fake osExit is still installed,
 	// so the osExit(0) on the clean-shutdown path won't kill the test
-	// process. This avoids leaking a goroutine blocked on the shared
-	// shutdownChan, which would steal signals from later tests.
-	shutdownChan <- syscall.SIGTERM
+	// process. This avoids leaking a goroutine blocked on the shutdown
+	// channel.
+	shutdown <- syscall.SIGTERM
 
 	select {
 	case code := <-exitCalled:
@@ -136,13 +143,16 @@ func TestStart_ProductionExitOnCleanShutdown(t *testing.T) {
 	osExit = func(code int) { exitCalled <- code }
 	defer func() { osExit = oldExit }()
 
+	shutdown := make(chan os.Signal, 1)
+
 	go func() {
 		Start(Options{
-			Host:     "localhost",
-			Port:     port,
-			Handler:  func(w http.ResponseWriter, r *http.Request) {},
-			Mode:     ProductionMode,
-			LogLevel: LogLevelNone,
+			Host:         "localhost",
+			Port:         port,
+			Handler:      func(w http.ResponseWriter, r *http.Request) {},
+			Mode:         ProductionMode,
+			LogLevel:     LogLevelNone,
+			ShutdownChan: shutdown,
 		})
 	}()
 
@@ -157,7 +167,7 @@ func TestStart_ProductionExitOnCleanShutdown(t *testing.T) {
 	}
 
 	// Trigger graceful shutdown.
-	shutdownChan <- syscall.SIGTERM
+	shutdown <- syscall.SIGTERM
 
 	select {
 	case code := <-exitCalled:

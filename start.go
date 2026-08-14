@@ -23,6 +23,12 @@ type Options struct {
 	Handler  func(w http.ResponseWriter, r *http.Request)
 	Mode     string   // optional, default is production, can be development or testing
 	LogLevel LogLevel // optional, default is "info", can be "debug", "info", "error", or "none"
+	// ShutdownChan is an optional channel that Start listens on for shutdown
+	// signals. If nil, an internal buffered channel is created. Providing a
+	// channel allows callers (and tests) to trigger shutdown programmatically
+	// by sending a signal to it. Real OS signals (SIGINT, SIGTERM) are also
+	// forwarded to this channel via signal.Notify.
+	ShutdownChan chan os.Signal
 }
 
 // LogLevel represents the level of logging.
@@ -38,8 +44,6 @@ const (
 	// LogLevelNone is the none logging level.
 	LogLevelNone LogLevel = "none"
 )
-
-var shutdownChan = make(chan os.Signal, 1)
 
 // osExit is indirection over os.Exit so tests can verify exit behavior
 // without killing the test process. Defaults to os.Exit in production.
@@ -94,6 +98,15 @@ func Start(options Options) (server *Server, err error) {
 
 	// Create a new web server
 	server = New(addr, options.Handler)
+
+	// Resolve the shutdown channel: use the one provided by the caller
+	// (or tests), or create an internal one. This keeps the package
+	// reentrant — each Start call has its own channel instead of sharing
+	// a package-level global.
+	shutdownChan := options.ShutdownChan
+	if shutdownChan == nil {
+		shutdownChan = make(chan os.Signal, 1)
+	}
 
 	// Register shutdown signals
 	signal.Notify(shutdownChan, os.Interrupt, syscall.SIGTERM)
